@@ -1,3 +1,5 @@
+import { cerrarSesion, obtenerToken } from '../auth.js';
+
 export function crearNavegacion() {
   const header = document.createElement('header');
   header.className = 'page-header';
@@ -7,10 +9,17 @@ export function crearNavegacion() {
       <a class="brand-link" href="#/inicio"><h1>Inventario</h1></a>
       <p class="subtitle">Gestión de productos, existencias y proveedores.</p>
     </div>
-    <nav class="main-nav" aria-label="Navegación principal">
-      <a href="#/inicio">Inicio</a>
-      <a href="#/productos">Productos</a>
-    </nav>
+    ${obtenerToken()
+      ? `<nav class="main-nav" aria-label="Navegación principal">
+          <a href="#/inicio">Inicio</a>
+          <a href="#/productos">Productos</a>
+          <button type="button" class="secondary-button logout-button">Cerrar sesión</button>
+        </nav>`
+      : ''}
   `;
+  header.querySelector('.logout-button')?.addEventListener('click', () => {
+    cerrarSesion();
+    window.location.hash = '#/login';
+  });
   return header;
 }

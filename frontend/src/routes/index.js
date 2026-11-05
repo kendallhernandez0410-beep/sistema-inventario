@@ -1,11 +1,14 @@
 import { crearNavegacion } from '../components/navegacion.js';
+import { obtenerToken } from '../auth.js';
 import { renderizarPaginaInicio } from '../pages/inicio.page.js';
+import { renderizarPaginaLogin } from '../pages/login.page.js';
 import { renderizarPaginaNoEncontrada } from '../pages/no-encontrada.page.js';
 import { renderizarPaginaProductos } from '../pages/productos.page.js';
 
 const rutas = {
   '/inicio': renderizarPaginaInicio,
   '/productos': renderizarPaginaProductos,
+  '/login': renderizarPaginaLogin,
 };
 
 function obtenerRutaActual() {
@@ -17,11 +20,15 @@ function renderizarRuta(contenedor) {
   contenido.className = 'layout';
   contenido.append(crearNavegacion());
 
-  const renderizarPagina = rutas[obtenerRutaActual()] || renderizarPaginaNoEncontrada;
+  const rutaSolicitada = obtenerRutaActual();
+  const rutaProtegida = rutaSolicitada !== '/login';
+  const renderizarPagina = rutaProtegida && !obtenerToken()
+    ? renderizarPaginaLogin
+    : rutas[rutaSolicitada] || renderizarPaginaNoEncontrada;
   renderizarPagina(contenido);
 
   const pie = document.createElement('footer');
-  pie.textContent = 'Los datos se guardan temporalmente en memoria y se reinician al apagar el servidor.';
+  pie.textContent = 'Los productos, categorías y proveedores se guardan en SQL Server.';
   contenido.append(pie);
 
   contenedor.replaceChildren(contenido);

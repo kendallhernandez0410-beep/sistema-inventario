@@ -1,0 +1,309 @@
+{
+  "info": {
+    "name": "Sistema de inventario",
+    "description": "Flujo de registro, autenticación y operaciones CRUD de categorías, proveedores y productos relacionados.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Registrar usuario",
+      "auth": {
+        "type": "noauth"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('usuarioCorreo', `postman-${Date.now()}@example.com`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 201 sin exponer la contraseña', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.usuario.correo).to.eql(pm.collectionVariables.get('usuarioCorreo'));",
+              "  pm.expect(body.usuario.password_hash).to.be.undefined;",
+              "  pm.expect(body.usuario.password).to.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"nombre\":\"Usuario Postman\",\"correo\":\"{{usuarioCorreo}}\",\"password\":\"Postman-Dia2-2026\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/auth/register"
+      }
+    },
+    {
+      "name": "Iniciar sesión",
+      "auth": {
+        "type": "noauth"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200 y guarda el JWT de ocho horas', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.token).to.be.a('string');",
+              "  pm.expect(body.usuario.password_hash).to.be.undefined;",
+              "  pm.collectionVariables.set('token', body.token);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"correo\":\"{{usuarioCorreo}}\",\"password\":\"Postman-Dia2-2026\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      }
+    },
+    {
+      "name": "Consultar usuario autenticado",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200 con datos públicos del usuario', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.usuario.correo).to.eql(pm.collectionVariables.get('usuarioCorreo'));",
+              "  pm.expect(body.usuario.password_hash).to.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/auth/me"
+      }
+    },
+    {
+      "name": "Crear categoría",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('categoriaNombre', `Postman-${Date.now()}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 201 y crea la categoría', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.categoria_id).to.exist;",
+              "  pm.collectionVariables.set('categoriaId', body.categoria_id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"nombre\":\"{{categoriaNombre}}\",\"descripcion\":\"Categoría de prueba\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/categorias"
+      }
+    },
+    {
+      "name": "Crear proveedor",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('proveedorNombre', `Postman-${Date.now()}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 201 y crea el proveedor', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.proveedor_id).to.exist;",
+              "  pm.collectionVariables.set('proveedorId', body.proveedor_id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"nombre\":\"{{proveedorNombre}}\",\"contacto\":\"Prueba\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/proveedores"
+      }
+    },
+    {
+      "name": "Crear producto vinculado",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('productoSku', `POSTMAN-${Date.now()}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 201 con sus relaciones', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.sku).to.eql(pm.collectionVariables.get('productoSku'));",
+              "  pm.expect(body.categoria_id).to.eql(Number(pm.collectionVariables.get('categoriaId')));",
+              "  pm.expect(body.proveedor_id).to.eql(Number(pm.collectionVariables.get('proveedorId')));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"sku\":\"{{productoSku}}\",\"nombre\":\"Producto Postman\",\"precio\":25.5,\"stock\":8,\"categoria_id\":{{categoriaId}},\"proveedor_id\":{{proveedorId}}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/productos"
+      }
+    },
+    {
+      "name": "Listar productos y verificar relaciones",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200 y contiene el producto creado con sus relaciones', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const producto = pm.response.json().find((item) => item.sku === pm.collectionVariables.get('productoSku'));",
+              "  pm.expect(producto).to.exist;",
+              "  pm.expect(producto.categoria_id).to.eql(Number(pm.collectionVariables.get('categoriaId')));",
+              "  pm.expect(producto.proveedor_id).to.eql(Number(pm.collectionVariables.get('proveedorId')));",
+              "  pm.expect(producto.categoria).to.eql(pm.collectionVariables.get('categoriaNombre'));",
+              "  pm.expect(producto.proveedor).to.eql(pm.collectionVariables.get('proveedorNombre'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/productos"
+      }
+    }
+  ]
+}

@@ -1,17 +1,11 @@
 import { crearFormularioProducto } from '../components/producto-formulario.js';
 import { crearTablaProductos } from '../components/productos-tabla.js';
+import { solicitarApi } from '../auth.js';
 
 const API_PRODUCTOS = '/api/productos';
 
-async function solicitarProductos() {
-  const respuesta = await fetch(API_PRODUCTOS);
-  const productos = await respuesta.json();
-
-  if (!respuesta.ok) {
-    throw new Error(productos.mensaje || 'No se pudieron cargar los productos.');
-  }
-
-  return productos;
+async function solicitarJson(url) {
+  return solicitarApi(url);
 }
 
 export function renderizarPaginaProductos(contenedor) {
@@ -29,13 +23,18 @@ export function renderizarPaginaProductos(contenedor) {
     estado.className = 'message';
 
     try {
-      const productos = await solicitarProductos();
+      const [productos, categorias, proveedores] = await Promise.all([
+        solicitarJson(API_PRODUCTOS),
+        solicitarJson('/api/categorias'),
+        solicitarJson('/api/proveedores'),
+      ]);
       tablaContenedor.replaceChildren(crearTablaProductos(productos));
       estado.textContent = '';
       estado.className = 'message';
-      tablaContenedor
-        .querySelector('.secondary-button')
-        .addEventListener('click', cargarProductos);
+      tablaContenedor.querySelector('.secondary-button').addEventListener('click', cargarProductos);
+      if (!contenedor.querySelector('form')) {
+        contenedor.prepend(crearFormularioProducto(guardarProducto, { categorias, proveedores }));
+      }
     } catch (error) {
       estado.textContent = `No fue posible conectar con la API. ${error.message}`;
       estado.className = 'message error';
@@ -43,20 +42,13 @@ export function renderizarPaginaProductos(contenedor) {
   }
 
   async function guardarProducto(producto) {
-    const respuesta = await fetch(API_PRODUCTOS, {
+    await solicitarApi(API_PRODUCTOS, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(producto),
     });
-    const resultado = await respuesta.json();
-
-    if (!respuesta.ok) {
-      throw new Error(resultado.errores?.join(' ') || resultado.mensaje || 'No se pudo guardar.');
-    }
 
     await cargarProductos();
   }
 
-  contenedor.prepend(crearFormularioProducto(guardarProducto));
   cargarProductos();
 }

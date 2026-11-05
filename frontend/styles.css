@@ -17,8 +17,21 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+select {
+  width: 100%;
+  min-height: 43px;
+  padding: 10px 12px;
+  border: 1px solid #dbe3dc;
+  border-radius: 7px;
+  outline: none;
+  color: #17231d;
+  background: #fff;
+  font-weight: 400;
 }
 
 .layout {
@@ -132,6 +145,17 @@ h2 {
   box-shadow: 0 5px 20px rgb(26 54 37 / 4%);
 }
 
+.auth-panel {
+  width: min(520px, 100%);
+  margin: 30px auto;
+}
+
+.auth-panel form {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+
 .welcome-panel {
   padding: 36px;
 }
@@ -179,7 +203,8 @@ label {
   font-weight: 650;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 43px;
   padding: 10px 12px;
@@ -195,7 +220,8 @@ input::placeholder {
   color: #9aa69e;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #3d9265;
   box-shadow: 0 0 0 3px rgb(61 146 101 / 13%);
 }

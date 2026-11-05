@@ -3,7 +3,16 @@ function mostrarMensaje(elemento, mensaje, tipo = '') {
   elemento.className = `message ${tipo}`.trim();
 }
 
-export function crearFormularioProducto(alGuardar) {
+function agregarOpciones(select, opciones, nombreId) {
+  opciones.forEach((opcion) => {
+    const elemento = document.createElement('option');
+    elemento.value = opcion[nombreId];
+    elemento.textContent = opcion.nombre;
+    select.append(elemento);
+  });
+}
+
+export function crearFormularioProducto(alGuardar, { categorias, proveedores }) {
   const seccion = document.createElement('section');
   seccion.className = 'panel';
   seccion.setAttribute('aria-labelledby', 'form-title');
@@ -33,12 +42,16 @@ export function crearFormularioProducto(alGuardar) {
           <input name="stock" type="number" min="0" step="1" placeholder="0" required />
         </label>
         <label>
-          ID de categoría
-          <input name="categoria_id" type="number" min="1" step="1" placeholder="Opcional" />
+          Categoría
+          <select name="categoria_id">
+            <option value="">Sin categoría</option>
+          </select>
         </label>
         <label>
-          ID de proveedor
-          <input name="proveedor_id" type="number" min="1" step="1" placeholder="Opcional" />
+          Proveedor
+          <select name="proveedor_id">
+            <option value="">Sin proveedor</option>
+          </select>
         </label>
       </div>
       <div class="form-footer">
@@ -52,6 +65,8 @@ export function crearFormularioProducto(alGuardar) {
   const formulario = seccion.querySelector('form');
   const boton = formulario.querySelector('button');
   const mensaje = formulario.querySelector('.message');
+  agregarOpciones(formulario.elements.categoria_id, categorias, 'categoria_id');
+  agregarOpciones(formulario.elements.proveedor_id, proveedores, 'proveedor_id');
 
   formulario.addEventListener('submit', async (evento) => {
     evento.preventDefault();

@@ -46,8 +46,8 @@ export function crearTablaProductos(productos) {
       crearCelda(producto.nombre),
       crearCelda(precioMXN.format(producto.precio)),
       crearCelda(producto.stock),
-      crearCelda(producto.categoria_id),
-      crearCelda(producto.proveedor_id),
+      crearCelda(producto.categoria || producto.categoria_id),
+      crearCelda(producto.proveedor || producto.proveedor_id),
     );
     filas.append(fila);
   });
