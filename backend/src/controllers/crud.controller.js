@@ -1,24 +1,17 @@
-const { sql, connectToDatabase } = require('../db');
-
 const MAX_SQL_INT = 2147483647;
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function createCrudController(config) {
-  const fieldNames = config.fields.map((field) => field.name);
-  const insertColumns = fieldNames.join(', ');
-  const insertParameters = fieldNames.map((name) => `@${name}`).join(', ');
-  const updateFields = fieldNames.map((name) => `${name} = @${name}`).join(', ');
-
+function createCrudController(model) {
   function validateBody(body) {
     if (!isObject(body)) {
       return ['El cuerpo de la solicitud debe ser un objeto JSON.'];
     }
 
-    const errors = config.validate(body);
-    for (const field of config.fields) {
+    const errors = model.validate(body);
+    for (const field of model.fields) {
       const value = body[field.name];
 
       if (value == null) {
@@ -55,58 +48,31 @@ function createCrudController(config) {
     return [...new Set(errors)];
   }
 
-  function bindFields(request, body) {
-    for (const field of config.fields) {
-      const value = body[field.name];
-      request.input(
-        field.name,
-        field.type,
-        typeof value === 'string' ? value.trim() || null : value ?? null,
-      );
-    }
-    return request;
-  }
-
-  async function validateReferences(pool, body) {
-    const errors = [];
-
-    for (const reference of config.references || []) {
-      const id = body[reference.field];
-      if (id == null) continue;
-
-      const result = await pool
-        .request()
-        .input('referenceId', sql.Int, id)
-        .query(`SELECT 1 AS existe FROM ${reference.table} WHERE ${reference.idColumn} = @referenceId`);
-
-      if (result.recordset.length === 0) {
-        errors.push(`El ${reference.label} indicado no existe.`);
-      }
-    }
-
-    return errors;
-  }
-
   function respondWithError(res, error, action) {
+    if (error.code === 'DEPENDENCY_CONFLICT') {
+      return res.status(409).json({
+        mensaje: `No se puede eliminar ${model.label.toLowerCase()} porque hay productos relacionados.`,
+      });
+    }
+
     if (error.number === 2601 || error.number === 2627) {
-      return res.status(409).json({ mensaje: `${config.label} ya existe.` });
+      return res.status(409).json({ mensaje: `${model.label} ya existe.` });
     }
 
     if (error.number === 547) {
       return res.status(409).json({
-        mensaje: `No se puede ${action} ${config.label.toLowerCase()} porque tiene relaciones dependientes.`,
+        mensaje: `No se puede ${action} ${model.label.toLowerCase()} porque tiene relaciones dependientes.`,
       });
     }
 
-    console.error(`Error al ${action} ${config.label.toLowerCase()}:`, error);
-    return res.status(500).json({ mensaje: `No se pudo ${action} ${config.label.toLowerCase()}.` });
+    console.error(`Error al ${action} ${model.label.toLowerCase()}:`, error);
+    return res.status(500).json({ mensaje: `No se pudo ${action} ${model.label.toLowerCase()}.` });
   }
 
   async function listar(req, res) {
     try {
-      const pool = await connectToDatabase();
-      const result = await pool.request().query(config.selectList);
-      return res.status(200).json(result.recordset);
+      const rows = await model.listar();
+      return res.status(200).json(rows);
     } catch (error) {
       return respondWithError(res, error, 'consultar');
     }
@@ -119,17 +85,11 @@ function createCrudController(config) {
     }
 
     try {
-      const pool = await connectToDatabase();
-      const result = await pool
-        .request()
-        .input('id', sql.Int, id)
-        .query(config.selectOne);
-
-      if (result.recordset.length === 0) {
-        return res.status(404).json({ mensaje: `${config.label} no encontrado.` });
+      const row = await model.obtenerPorId(id);
+      if (!row) {
+        return res.status(404).json({ mensaje: `${model.label} no encontrado.` });
       }
-
-      return res.status(200).json(result.recordset[0]);
+      return res.status(200).json(row);
     } catch (error) {
       return respondWithError(res, error, 'consultar');
     }
@@ -138,24 +98,17 @@ function createCrudController(config) {
   async function crear(req, res) {
     const errors = validateBody(req.body);
     if (errors.length > 0) {
-      return res.status(400).json({ mensaje: `Los datos de ${config.label.toLowerCase()} no son válidos.`, errores: errors });
+      return res.status(400).json({ mensaje: `Los datos de ${model.label.toLowerCase()} no son válidos.`, errores: errors });
     }
 
     try {
-      const pool = await connectToDatabase();
-      const referenceErrors = await validateReferences(pool, req.body);
+      const referenceErrors = await model.validarReferencias(req.body);
       if (referenceErrors.length > 0) {
         return res.status(400).json({ mensaje: 'Hay referencias inválidas.', errores: referenceErrors });
       }
 
-      const request = bindFields(pool.request(), req.body);
-      const result = await request.query(`
-        INSERT INTO ${config.table} (${insertColumns})
-        OUTPUT INSERTED.*
-        VALUES (${insertParameters})
-      `);
-
-      return res.status(201).json(result.recordset[0]);
+      const row = await model.crear(req.body);
+      return res.status(201).json(row);
     } catch (error) {
       return respondWithError(res, error, 'crear');
     }
@@ -169,29 +122,20 @@ function createCrudController(config) {
 
     const errors = validateBody(req.body);
     if (errors.length > 0) {
-      return res.status(400).json({ mensaje: `Los datos de ${config.label.toLowerCase()} no son válidos.`, errores: errors });
+      return res.status(400).json({ mensaje: `Los datos de ${model.label.toLowerCase()} no son válidos.`, errores: errors });
     }
 
     try {
-      const pool = await connectToDatabase();
-      const referenceErrors = await validateReferences(pool, req.body);
+      const referenceErrors = await model.validarReferencias(req.body);
       if (referenceErrors.length > 0) {
         return res.status(400).json({ mensaje: 'Hay referencias inválidas.', errores: referenceErrors });
       }
 
-      const request = bindFields(pool.request(), req.body).input('id', sql.Int, id);
-      const result = await request.query(`
-        UPDATE ${config.table}
-        SET ${updateFields}
-        OUTPUT INSERTED.*
-        WHERE ${config.idColumn} = @id
-      `);
-
-      if (result.recordset.length === 0) {
-        return res.status(404).json({ mensaje: `${config.label} no encontrado.` });
+      const row = await model.actualizar(id, req.body);
+      if (!row) {
+        return res.status(404).json({ mensaje: `${model.label} no encontrado.` });
       }
-
-      return res.status(200).json(result.recordset[0]);
+      return res.status(200).json(row);
     } catch (error) {
       return respondWithError(res, error, 'actualizar');
     }
@@ -204,39 +148,11 @@ function createCrudController(config) {
     }
 
     try {
-      const pool = await connectToDatabase();
-
-      if (config.dependency) {
-        const dependent = await pool
-          .request()
-          .input('id', sql.Int, id)
-          .query(`
-            SELECT TOP (1) 1 AS existe
-            FROM ${config.dependency.table}
-            WHERE ${config.dependency.foreignKey} = @id
-          `);
-
-        if (dependent.recordset.length > 0) {
-          return res.status(409).json({
-            mensaje: `No se puede eliminar ${config.label.toLowerCase()} porque hay productos relacionados.`,
-          });
-        }
+      const deleted = await model.eliminar(id);
+      if (!deleted) {
+        return res.status(404).json({ mensaje: `${model.label} no encontrado.` });
       }
-
-      const result = await pool
-        .request()
-        .input('id', sql.Int, id)
-        .query(`
-          DELETE FROM ${config.table}
-          OUTPUT DELETED.${config.idColumn}
-          WHERE ${config.idColumn} = @id
-        `);
-
-      if (result.recordset.length === 0) {
-        return res.status(404).json({ mensaje: `${config.label} no encontrado.` });
-      }
-
-      return res.status(200).json({ mensaje: `${config.label} eliminado correctamente.` });
+      return res.status(200).json({ mensaje: `${model.label} eliminado correctamente.` });
     } catch (error) {
       return respondWithError(res, error, 'eliminar');
     }

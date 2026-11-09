@@ -1,53 +1,52 @@
 # Sistema de inventario y proveedores
 
-Aplicación para que una empresa centralice usuarios, productos, existencias,
-categorías y proveedores en SQL Server. La justificación del proyecto está en
-[`docs/justificacion.md`](docs/justificacion.md), y el modelo entidad-relación
-en [`docs/modelo-entidad-relacion.md`](docs/modelo-entidad-relacion.md).
-
-## Entregables
-
-- Documento breve del tema y su justificación empresarial.
-- Diagrama entidad-relación con atributos, claves y relaciones.
-- Estructura separada de backend Node.js/Express y frontend JavaScript.
-- API con endpoints de creación y listado, pruebas automatizadas de validación
-  y colección importable de Postman.
-- Registro e inicio de sesión con contraseñas cifradas con bcryptjs y JWT con
-  expiración de ocho horas.
-- CRUD protegido para productos, categorías y proveedores.
+Sistema empresarial con backend Node.js/Express y SQL Server, y frontend React
+con Vite, React Router y Axios. Incluye autenticación JWT y gestión de
+productos, categorías y proveedores.
 
 ## Requisitos
 
-- Node.js 18 o posterior.
-- SQL Server y una base de datos configurada en `backend/.env`.
+- Node.js 20 o posterior para frontend (React Router 7); Node.js 18 o posterior
+  para ejecutar únicamente el backend.
+- SQL Server configurado en `backend/.env`.
+- `JWT_SECRET` privado de al menos 32 bytes.
+- Node.js y npm instalados en ambas carpetas.
 
-## Configuración
+El esquema de referencia está en [`backend/sql/schema.sql`](backend/sql/schema.sql).
+Antes de ejecutar el script contra una base existente, verifica que las tablas
+actuales tengan las columnas y relaciones esperadas.
 
-Define estas variables en `backend/.env`:
+## Configuración y ejecución
 
-```env
-PORT=3000
-DB_USER=usuario
-DB_PASSWORD=contraseña
-DB_SERVER=localhost
-DB_NAME=inventario_db
-JWT_SECRET=secreto_aleatorio_de_al_menos_32_bytes
-```
+Configura en `backend/.env` las variables `PORT`, `DB_USER`, `DB_PASSWORD`,
+`DB_SERVER`, `DB_NAME` y `JWT_SECRET`. Puedes usar
+[`backend/.env.example`](backend/.env.example) como plantilla; nunca publiques
+el archivo `.env`.
 
-Para una instancia nombrada, puedes usar `DB_SERVER=localhost\\SQLEXPRESS`.
-Genera `JWT_SECRET` como un valor aleatorio privado de al menos 32 bytes. Puedes
-copiar `backend/.env.example` como plantilla. No compartas ni subas `.env`; está
-excluido de Git.
+Si la instancia SQL Server usa TCP/IP deshabilitado o no puede resolverse por
+SQL Server Browser, habilita **TCP/IP** en SQL Server Configuration Manager,
+configura un puerto TCP estático en `IPAll` (por ejemplo `1433`) y reinicia el
+servicio `SQL Server (SQLEXPRESS)`. Después configura `DB_SERVER=localhost` y
+`DB_PORT=1433` en `backend/.env`. `DB_PORT` hace que la API conecte por puerto
+directo y no dependa de SQL Server Browser.
 
-El esquema de referencia, incluida la tabla `usuarios`, está en
-[`backend/sql/schema.sql`](backend/sql/schema.sql). El script crea únicamente
-tablas faltantes: no modifica tablas que ya existan.
-Antes de ejecutarlo en una base existente, compara sus columnas y relaciones con
-el [modelo ER](docs/modelo-entidad-relacion.md) y adapta el esquema o las
-consultas si no coinciden. El equipo no pudo confirmar la conexión a SQL Server
-durante la preparación de estos entregables.
+Los registros públicos reciben rol `usuario`; la API no permite elegir admin
+desde el formulario. Para preparar los dos paneles:
 
-## Iniciar y probar
+1. Ejecuta [`backend/sql/roles-migration.sql`](backend/sql/roles-migration.sql)
+   en `inventario_db`. Las cuentas existentes se mantienen como usuarios.
+2. Configura `ADMIN_NAME`, `ADMIN_EMAIL` y `ADMIN_PASSWORD` en el `.env`.
+   Usa una contraseña privada de al menos 12 caracteres y no más de 72 bytes.
+3. Desde `backend/`, ejecuta `npm run admin:bootstrap`. Crea la cuenta admin o
+   promueve la cuenta existente de ese correo. El comando nunca imprime la
+   contraseña ni reemplaza la contraseña de una cuenta existente.
+4. Elimina `ADMIN_PASSWORD` de `.env` después de crear la cuenta. Inicia sesión
+   con el correo y la contraseña que configuraste.
+
+No hay credenciales predeterminadas. Crea cuentas de usuario normal en
+`/registro`; solo administradores pueden crear, editar o eliminar registros.
+
+Inicia el backend en una terminal:
 
 ```powershell
 cd backend
@@ -55,60 +54,70 @@ npm install
 npm run dev
 ```
 
-El frontend y la API estarán disponibles en `http://localhost:3000`. Las pruebas
-automatizadas de validación se ejecutan con:
+Inicia React/Vite en otra terminal:
 
 ```powershell
-npm test
+cd frontend
+npm install
+npm run dev
 ```
 
-Para probar operaciones persistentes, inicia SQL Server y ejecuta la colección
-[`postman/inventario.postman_collection.json`](postman/inventario.postman_collection.json)
-en Postman Runner, en orden y con el servidor iniciado. La colección registra
-un usuario de prueba, inicia sesión y guarda el JWT para los siguientes
-endpoints; luego crea una categoría, un proveedor y un producto relacionado, y
-verifica el listado. Cada ejecución inserta datos de prueba permanentes nuevos.
+Abre `http://localhost:5173`. Vite configura el proxy `/api` hacia el backend
+en `http://localhost:3000`. Para compilar y servir el frontend estático desde
+Express:
+
+```powershell
+cd frontend
+npm run build
+```
+
+## Frontend
+
+- `src/services/api.js`: Axios base, token JWT e interceptor 401.
+- `src/context/AuthContext.jsx`: login, registro, cierre de sesión y sesión persistente.
+- `src/components/RutaProtegida.jsx`: protege las vistas privadas.
+- `src/pages/Login.jsx` y `Registro.jsx`: formularios de acceso.
+- `src/pages/PanelUsuario.jsx`: consulta del inventario de solo lectura.
+- `src/pages/Dashboard.jsx`: panel administrador.
+- `src/pages/Productos.jsx`, `Categorias.jsx` y `Proveedores.jsx`: tablas y CRUD.
+- `src/components/PaginaEntidad.jsx`: flujo CRUD común y referencias dinámicas.
+
+El frontend guarda el JWT en `localStorage` como lo solicita el contrato. Para
+despliegues con mayor exigencia de seguridad se recomienda migrar a cookies
+`HttpOnly`, `Secure` y `SameSite` junto con los cambios correspondientes en API.
 
 ## API
 
-| Método | Ruta | Función |
-| --- | --- | --- |
-| POST | `/api/auth/register` | Registro público; requiere `nombre`, `correo` y `password` de al menos 8 caracteres. |
-| POST | `/api/auth/login` | Inicio de sesión; entrega un JWT válido por 8 horas. |
-| GET | `/api/auth/me` | Devuelve el usuario del token actual. |
-| GET/POST | `/api/productos` | Lista o crea productos con referencias opcionales a categoría y proveedor. |
-| GET/PUT/DELETE | `/api/productos/:id` | Consulta, reemplaza o elimina un producto. |
-| GET/POST | `/api/categorias` | Lista o crea categorías. |
-| GET/PUT/DELETE | `/api/categorias/:id` | Consulta, reemplaza o elimina una categoría. |
-| GET/POST | `/api/proveedores` | Lista o crea proveedores. |
-| GET/PUT/DELETE | `/api/proveedores/:id` | Consulta, reemplaza o elimina un proveedor. |
+Públicas:
 
-Todas las rutas salvo registro e inicio de sesión requieren
-`Authorization: Bearer <token>`. Para editar se envía el objeto completo del
-recurso. El producto requiere `sku`, `nombre`, `precio` (número mayor o igual a
-cero) y `stock` (entero no negativo); sus IDs de categoría y proveedor deben
-existir. Categorías y proveedores requieren `nombre`. No se pueden eliminar
-categorías o proveedores vinculados a productos (409 Conflict). Correos y SKU
-duplicados también responden 409.
+- `POST /api/auth/register`
+- `POST /api/auth/login`
 
-Ejemplo de `POST /api/productos`:
+Protegida:
 
-```json
-{
-  "sku": "PROD-001",
-  "nombre": "Producto de ejemplo",
-  "precio": 99.5,
-  "stock": 10,
-  "categoria_id": 1,
-  "proveedor_id": 1
-}
-```
+- `GET /api/auth/me`
+- CRUD REST (`GET`, `GET /:id`, `POST`, `PUT /:id`, `DELETE /:id`) para
+  `/api/productos`, `/api/categorias` y `/api/proveedores`.
 
-Ejemplo de autenticación:
+Todas las llamadas protegidas envían el token JWT en el encabezado
+`Authorization`. El panel usuario puede consultar el inventario; solo el panel
+admin puede crear, editar o eliminar productos, categorías y proveedores.
+El módulo admin de productos carga las categorías y proveedores para elegir las
+relaciones. Los cambios de rol requieren iniciar sesión de nuevo; los tokens
+emitidos anteriormente conservan su rol hasta expirar (8 horas).
 
-```json
-{
-  "correo": "usuario@empresa.com",
-  "password": "una-clave-segura"
-}
-```
+## Modelos del backend
+
+La persistencia de las entidades existentes está organizada en
+`backend/src/models/`: `producto.model.js`, `categoria.model.js`,
+`proveedor.model.js` y `usuario.model.js`. Los tres modelos de inventario
+comparten las operaciones SQL parametrizadas de `crud.model.js`; los
+controladores conservan la validación de solicitudes y las respuestas HTTP.
+El modelo de usuario centraliza las consultas usadas por registro, inicio de
+sesión y consulta del perfil autenticado.
+
+## Pruebas y dependencias
+
+Desde `backend`, ejecuta `npm test` para las pruebas API y `npm audit` para
+revisar dependencias del servidor. Desde `frontend`, ejecuta `npm run build`
+para validar y compilar la aplicación.

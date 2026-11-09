@@ -8,7 +8,13 @@ const app = require('../src/app');
 
 let server;
 let baseUrl;
-const token = jwt.sign({}, process.env.JWT_SECRET, {
+const token = jwt.sign({ role: 'usuario' }, process.env.JWT_SECRET, {
+  algorithm: 'HS256',
+  subject: '1',
+  issuer: 'inventario-api',
+  expiresIn: '8h',
+});
+const adminToken = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, {
   algorithm: 'HS256',
   subject: '1',
   issuer: 'inventario-api',
@@ -68,11 +74,48 @@ test('requiere autenticación para todos los endpoints CRUD', async () => {
   }
 });
 
+test('el usuario no puede crear, actualizar ni eliminar entidades', async () => {
+  const endpoints = [
+    ['POST', '/api/productos', { sku: 'X', nombre: 'X', precio: 1, stock: 1 }],
+    ['PUT', '/api/productos/1', { sku: 'X', nombre: 'X', precio: 1, stock: 1 }],
+    ['DELETE', '/api/productos/1'],
+    ['POST', '/api/categorias', { nombre: 'X' }],
+    ['PUT', '/api/categorias/1', { nombre: 'X' }],
+    ['DELETE', '/api/categorias/1'],
+    ['POST', '/api/proveedores', { nombre: 'X' }],
+    ['PUT', '/api/proveedores/1', { nombre: 'X' }],
+    ['DELETE', '/api/proveedores/1'],
+  ];
+
+  for (const [method, ruta, body] of endpoints) {
+    const headers = { Authorization: `Bearer ${token}` };
+    if (body) headers['Content-Type'] = 'application/json';
+    const response = await fetch(`${baseUrl}${ruta}`, {
+      method,
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    assert.equal(response.status, 403, `${method} ${ruta} solo permite administradores`);
+  }
+});
+
 test('rechaza un token inválido', async () => {
   const respuesta = await fetch(`${baseUrl}/api/categorias`, {
     headers: { Authorization: 'Bearer invalid-token' },
   });
   assert.equal(respuesta.status, 401);
+});
+
+test('rechaza tokens sin rol válido', async () => {
+  const invalidRoleToken = jwt.sign({ role: 'superadmin' }, process.env.JWT_SECRET, {
+    algorithm: 'HS256',
+    subject: '1',
+    issuer: 'inventario-api',
+  });
+  const response = await fetch(`${baseUrl}/api/productos`, {
+    headers: { Authorization: `Bearer ${invalidRoleToken}` },
+  });
+  assert.equal(response.status, 401);
 });
 
 test('protege el endpoint del usuario autenticado', async () => {
@@ -86,7 +129,7 @@ test('rechaza productos sin los campos obligatorios con 400', async () => {
     nombre: '',
     precio: -1,
     stock: 1.5,
-  });
+  }, adminToken);
 
   assert.equal(respuesta.status, 400);
   const cuerpo = await respuesta.json();
@@ -94,12 +137,12 @@ test('rechaza productos sin los campos obligatorios con 400', async () => {
 });
 
 test('rechaza categorías sin nombre con 400', async () => {
-  const respuesta = await postJson('/api/categorias', {});
+  const respuesta = await postJson('/api/categorias', {}, adminToken);
   assert.equal(respuesta.status, 400);
 });
 
 test('rechaza proveedores sin nombre con 400', async () => {
-  const respuesta = await postJson('/api/proveedores', {});
+  const respuesta = await postJson('/api/proveedores', {}, adminToken);
   assert.equal(respuesta.status, 400);
 });
 
@@ -110,7 +153,7 @@ test('rechaza identificadores de relación que no son positivos', async () => {
     precio: 10,
     stock: 2,
     categoria_id: 0,
-  });
+  }, adminToken);
 
   assert.equal(respuesta.status, 400);
 });

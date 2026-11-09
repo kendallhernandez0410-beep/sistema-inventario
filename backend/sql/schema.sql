@@ -60,8 +60,30 @@ BEGIN
     correo NVARCHAR(254) NOT NULL
       CONSTRAINT UQ_usuarios_correo UNIQUE,
     password_hash NVARCHAR(60) NOT NULL,
+    rol NVARCHAR(20) NOT NULL
+      CONSTRAINT DF_usuarios_rol DEFAULT N'usuario',
     creado_en DATETIME2(0) NOT NULL
       CONSTRAINT DF_usuarios_creado_en DEFAULT SYSUTCDATETIME()
   );
+END;
+GO
+
+IF COL_LENGTH(N'dbo.usuarios', N'rol') IS NULL
+BEGIN
+  ALTER TABLE dbo.usuarios
+    ADD rol NVARCHAR(20) NOT NULL
+      CONSTRAINT DF_usuarios_rol DEFAULT N'usuario' WITH VALUES;
+END;
+GO
+
+IF NOT EXISTS (
+  SELECT 1
+  FROM sys.check_constraints
+  WHERE name = N'CK_usuarios_rol'
+    AND parent_object_id = OBJECT_ID(N'dbo.usuarios')
+)
+BEGIN
+  ALTER TABLE dbo.usuarios
+    ADD CONSTRAINT CK_usuarios_rol CHECK (rol IN (N'usuario', N'admin'));
 END;
 GO
